@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin:
+    name: Plugin build and smoke tests
+    uses: EsionHsrahLatigid/juce-ci/.github/workflows/juce-cmake.yml@v1
+    with:
+      runs-on: macos-14
+      dependency-cache-key: juce-8.0.15
+      cmake-options: >-
+        -DBINARYGLITCH_BUILD_PLUGIN=ON
+        -DBINARYGLITCH_BUILD_TESTS=ON
+      build-targets: >-
+        BinaryGlitch_Artifacts
+        BinaryGlitchPluginSmokeTests
+      artifact-name: BinaryGlitch-macOS
+      artifact-path: |
+        artifacts/Release/VST3/
+        artifacts/Release/AU/
+        artifacts/Release/Standalone/
