@@ -13,6 +13,8 @@ set(BINARYGLITCH_ARTIFACT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/artifacts" CACHE PATH
     "Directory for final VST3, AU, and Standalone products")
 
 if(BINARYGLITCH_BUILD_PLUGIN)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
     if(BINARYGLITCH_JUCE_PATH)
         add_subdirectory("${BINARYGLITCH_JUCE_PATH}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE")
     else()
@@ -84,6 +86,9 @@ if(BINARYGLITCH_BUILD_PLUGIN)
         COMMAND ${CMAKE_COMMAND} -E remove_directory "${binaryglitch_staged_products}/Standalone"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${binaryglitch_juce_products}/VST3" "${binaryglitch_staged_products}/VST3"
+        COMMAND ${Python3_EXECUTABLE}
+                "${CMAKE_CURRENT_SOURCE_DIR}/cmake/NormalizeVst3ModuleInfo.py"
+                "${binaryglitch_staged_products}/VST3/BinaryGlitch.vst3/Contents/Resources/moduleinfo.json"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${binaryglitch_juce_products}/Standalone" "${binaryglitch_staged_products}/Standalone")
 
@@ -118,5 +123,12 @@ if(BINARYGLITCH_BUILD_PLUGIN)
             "${CMAKE_CURRENT_BINARY_DIR}/BinaryGlitch_artefacts/JuceLibraryCode")
         target_link_libraries(BinaryGlitchPluginSmokeTests PRIVATE BinaryGlitch juce::juce_audio_utils)
         add_test(NAME BinaryGlitchPluginSmokeTests COMMAND BinaryGlitchPluginSmokeTests)
+        add_test(
+            NAME BinaryGlitchArtifactChecks
+            COMMAND ${CMAKE_COMMAND}
+                    -DBINARYGLITCH_STAGED_DIR=${BINARYGLITCH_ARTIFACT_DIR}/$<CONFIG>
+                    -DBINARYGLITCH_EXPECT_AU=$<BOOL:${APPLE}>
+                    -DPython3_EXECUTABLE=${Python3_EXECUTABLE}
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/VerifyArtifacts.cmake)
     endif()
 endif()
