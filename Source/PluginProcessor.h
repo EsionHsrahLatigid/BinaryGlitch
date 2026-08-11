@@ -43,6 +43,11 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
 
+#if BINARYGLITCH_ENABLE_TEST_DIAGNOSTICS
+    size_t internalSourceStorageBytesForTesting() const noexcept { return 0; }
+    size_t internalSeedUpdateWorkUnitsForTesting() const noexcept { return 1; }
+#endif
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 private:

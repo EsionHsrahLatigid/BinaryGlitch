@@ -1,3 +1,4 @@
+#define BINARYGLITCH_ENABLE_TEST_DIAGNOSTICS 1
 #include "PluginProcessor.h"
 
 #include <cmath>
@@ -125,6 +126,10 @@ int main()
 {
     BinaryGlitchAudioProcessor processor;
     processor.prepareToPlay (48000.0, 256);
+    require (processor.internalSourceStorageBytesForTesting() == 0,
+             "internal source should remain virtual and not materialize a byte buffer");
+    require (processor.internalSeedUpdateWorkUnitsForTesting() <= 1,
+             "seed update work should remain bounded");
 
     juce::AudioBuffer<float> buffer (2, 256);
     juce::MidiBuffer midi;
