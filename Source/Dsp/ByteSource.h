@@ -7,32 +7,6 @@
 
 namespace bg
 {
-struct Lfsr32
-{
-    uint32_t state { 0x12345678u };
-
-    void seed (uint32_t s) noexcept
-    {
-        state = (s == 0u ? 0x12345678u : s);
-    }
-
-    // 32-bit Galois LFSR. Polynomial: x^32 + x^22 + x^2 + x + 1
-    // Tap mask 0x80200003 is commonly used for maximal-length sequences.
-    uint32_t next() noexcept
-    {
-        const uint32_t lsb = state & 1u;
-        state >>= 1u;
-        if (lsb != 0u)
-            state ^= 0x80200003u;
-        return state;
-    }
-
-    uint8_t nextByte() noexcept
-    {
-        return static_cast<uint8_t>(next() & 0xFFu);
-    }
-};
-
 class ByteSource
 {
 public:

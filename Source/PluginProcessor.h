@@ -50,9 +50,6 @@ private:
 
     // ---- Data source ----
     bg::ByteSource byteSource;
-    bg::Lfsr32 lfsr;
-    std::atomic<uint32_t> seed { 0x12345678u };
-    bg::ByteSource::ByteData internalByteData;
     uint32_t internalSeed { 0u };
 
     // ---- Transport ----
@@ -89,10 +86,11 @@ private:
 
     // Helpers
     void updateDerived();
-    void refillInternalSource (uint32_t newSeed) noexcept;
+    void applyInternalSeed (uint32_t newSeed) noexcept;
     void updateHighPassCoefficients (float hpHz) noexcept;
     float renderTickSample (int channel, uint8_t b0, uint8_t b1, bool gate);
-    uint8_t readByteWithFaults (const bg::ByteSource::ByteData& data, int64 pos) const;
+    uint8_t readByteWithFaults (const bg::ByteSource::ByteData* data, int64 pos) const noexcept;
+    static uint8_t generateInternalByte (uint32_t sourceSeed, int64 pos) noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BinaryGlitchAudioProcessor)
 };
