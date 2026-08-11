@@ -52,6 +52,8 @@ private:
     bg::ByteSource byteSource;
     bg::Lfsr32 lfsr;
     std::atomic<uint32_t> seed { 0x12345678u };
+    bg::ByteSource::ByteData internalByteData;
+    uint32_t internalSeed { 0u };
 
     // ---- Transport ----
     double sr { 44100.0 };
@@ -64,6 +66,7 @@ private:
 
     // ---- Faulting ----
     bg::FaultEngine fault;
+    bg::FastRng modulationRng;
 
     // ---- Synthesis ----
     struct Voice
@@ -79,11 +82,15 @@ private:
     float combMix { 0.15f };
 
     juce::dsp::IIR::Filter<float> hpf[2];
+    juce::dsp::IIR::Coefficients<float>::Ptr hpfCoefficients[2];
+    float currentHpHz { -1.0f };
 
     juce::File lastFile;
 
     // Helpers
     void updateDerived();
+    void refillInternalSource (uint32_t newSeed) noexcept;
+    void updateHighPassCoefficients (float hpHz) noexcept;
     float renderTickSample (int channel, uint8_t b0, uint8_t b1, bool gate);
     uint8_t readByteWithFaults (const bg::ByteSource::ByteData& data, int64 pos) const;
 

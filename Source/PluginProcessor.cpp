@@ -88,18 +88,17 @@ void BinaryGlitchAudioProcessor::prepareToPlay (double sampleRate, int)
     sr = sampleRate;
     tickPhaseSamples = 0.0;
 
-    updateDerived();
-
     comb.prepare(sr, getTotalNumOutputChannels(), 50.0f);
     comb.reset();
 
-    // DC / HPF
-    const float hpHz = *apvts.getRawParameterValue(pDcHpHz.getParamID());
     for (int ch = 0; ch < 2; ++ch)
     {
         hpf[ch].reset();
-        hpf[ch].coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sr, juce::jlimit(5.0f, 200.0f, hpHz));
+        if (hpfCoefficients[ch] == nullptr)
+            hpfCoefficients[ch] = new juce::dsp::IIR::Coefficients<float> (1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        hpf[ch].coefficients = hpfCoefficients[ch];
     }
+    currentHpHz = -1.0f;
 
     // Start in a stable place
     readPos = 0;
@@ -109,6 +108,11 @@ void BinaryGlitchAudioProcessor::prepareToPlay (double sampleRate, int)
     seed.store(s);
     lfsr.seed(s);
     fault.reset(s ^ 0xA5A5A5A5u);
+    modulationRng.seed(s ^ 0x6D2B79F5u);
+
+    internalByteData.resize(1u << 20);
+    refillInternalSource(s);
+    updateDerived();
 }
 
 void BinaryGlitchAudioProcessor::releaseResources() {}
@@ -136,10 +140,67 @@ void BinaryGlitchAudioProcessor::updateDerived()
     w.stall   = *apvts.getRawParameterValue(pWStall.getParamID());
     fault.setWeights(w);
 
-    // update HPF if requested
+    const auto requestedSeed = static_cast<uint32_t>(*apvts.getRawParameterValue(pSeed.getParamID()));
+    if (requestedSeed != internalSeed)
+    {
+        seed.store(requestedSeed);
+        lfsr.seed(requestedSeed);
+        fault.reset(requestedSeed ^ 0xA5A5A5A5u);
+        modulationRng.seed(requestedSeed ^ 0x6D2B79F5u);
+        refillInternalSource(requestedSeed);
+    }
+
     const float hpHz = *apvts.getRawParameterValue(pDcHpHz.getParamID());
-    for (int ch = 0; ch < 2; ++ch)
-        hpf[ch].coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sr, juce::jlimit(5.0f, 200.0f, hpHz));
+    updateHighPassCoefficients(hpHz);
+}
+
+void BinaryGlitchAudioProcessor::refillInternalSource (uint32_t newSeed) noexcept
+{
+    if (internalByteData.empty())
+        return;
+
+    internalSeed = newSeed;
+    bg::Lfsr32 gen;
+    gen.seed(newSeed);
+
+    for (auto& b : internalByteData)
+        b = gen.nextByte();
+}
+
+void BinaryGlitchAudioProcessor::updateHighPassCoefficients (float hpHz) noexcept
+{
+    const float clampedHz = juce::jlimit(5.0f, 200.0f, hpHz);
+    if (std::abs(clampedHz - currentHpHz) < 0.001f)
+        return;
+
+    currentHpHz = clampedHz;
+
+    const auto omega = juce::MathConstants<double>::twoPi * static_cast<double>(clampedHz) / juce::jmax(1.0, sr);
+    const auto sinOmega = std::sin(omega);
+    const auto cosOmega = std::cos(omega);
+    const auto q = juce::MathConstants<double>::sqrt2 * 0.5;
+    const auto alpha = sinOmega / (2.0 * q);
+
+    const auto b0 = (1.0 + cosOmega) * 0.5;
+    const auto b1 = -(1.0 + cosOmega);
+    const auto b2 = (1.0 + cosOmega) * 0.5;
+    const auto a0 = 1.0 + alpha;
+    const auto a1 = -2.0 * cosOmega;
+    const auto a2 = 1.0 - alpha;
+    const auto a0Inv = 1.0 / a0;
+
+    for (auto& coeffs : hpfCoefficients)
+    {
+        if (coeffs == nullptr)
+            continue;
+
+        auto* raw = coeffs->getRawCoefficients();
+        raw[0] = static_cast<float>(b0 * a0Inv);
+        raw[1] = static_cast<float>(b1 * a0Inv);
+        raw[2] = static_cast<float>(b2 * a0Inv);
+        raw[3] = static_cast<float>(a1 * a0Inv);
+        raw[4] = static_cast<float>(a2 * a0Inv);
+    }
 }
 
 uint8_t BinaryGlitchAudioProcessor::readByteWithFaults (const bg::ByteSource::ByteData& data, int64 pos) const
@@ -204,24 +265,14 @@ void BinaryGlitchAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Select active byte data
     std::shared_ptr<const bg::ByteSource::ByteData> fileData = byteSource.getData();
 
-    // Internal data: a small cyclic buffer regenerated from seed for repeatability
-    static thread_local std::shared_ptr<bg::ByteSource::ByteData> internal;
-    static thread_local uint32_t internalSeed = 0;
-
-    const uint32_t s = seed.load();
-    if (internal == nullptr || internalSeed != s)
-    {
-        internalSeed = s;
-        bg::Lfsr32 gen;
-        gen.seed(s);
-        internal = std::make_shared<bg::ByteSource::ByteData>();
-        internal->resize(1u << 20); // 1 MiB ring
-        for (auto& b : *internal)
-            b = gen.nextByte();
-    }
-
     const int mode = (int) *apvts.getRawParameterValue(pSourceMode.getParamID());
-    auto active = (mode == 1 && fileData != nullptr && ! fileData->empty()) ? fileData : internal;
+    const auto* active = (mode == 1 && fileData != nullptr && ! fileData->empty()) ? fileData.get() : &internalByteData;
+
+    if (active == nullptr || active->empty())
+    {
+        buffer.clear();
+        return;
+    }
 
     const auto& data = *active;
 
@@ -261,8 +312,8 @@ void BinaryGlitchAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 // occasional aggressive forward jump
                 readPos += (int64) (readRateBytes * 1.0f);
-                if (juce::Random::getSystemRandom().nextFloat() < 0.25f)
-                    readPos += juce::Random::getSystemRandom().nextInt(juce::Range<int>(-seekRange, seekRange));
+                if (modulationRng.nextFloat01() < 0.25f)
+                    readPos += modulationRng.nextInt(-seekRange, seekRange - 1);
             }
             else
             {
@@ -270,7 +321,7 @@ void BinaryGlitchAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             }
 
             // keep boundary wandering slightly
-            boundary = (boundary + juce::Random::getSystemRandom().nextInt(juce::Range<int>(-1, 2))) & 1;
+            boundary = (boundary + modulationRng.nextInt(-1, 1)) & 1;
         }
 
         // Frame header derived corruption (gives repeating structure)
