@@ -11,7 +11,7 @@ concurrency:
 jobs:
   plugin:
     name: Plugin build and smoke tests
-    uses: EsionHsrahLatigid/juce-ci/.github/workflows/juce-cmake.yml@v1
+    uses: EsionHsrahLatigid/juce-ci/.github/workflows/juce-cmake.yml@98fcb96e64011725ed842941b350afe013e9ba7d
     with:
       runs-on: macos-14
       dependency-cache-key: juce-8.0.15
