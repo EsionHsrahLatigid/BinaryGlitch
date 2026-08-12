@@ -117,10 +117,12 @@ if(BINARYGLITCH_BUILD_PLUGIN)
         list(APPEND binaryglitch_artifact_commands
             COMMAND ${CMAKE_COMMAND} -E rm -rf "${binaryglitch_staged_products}/vst3/binaryglitch_vst3_plugin.vst3"
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${binaryglitch_juce_products}/VST3/BinaryGlitch.vst3" "${binaryglitch_staged_products}/vst3/binaryglitch_vst3_plugin.vst3"
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/NormalizeVst3ModuleInfo.py" "${binaryglitch_staged_products}/vst3/binaryglitch_vst3_plugin.vst3/Contents/Resources/moduleinfo.json"
             COMMAND ${CMAKE_COMMAND} -E copy "${binaryglitch_juce_products}/Standalone/BinaryGlitch.exe" "${binaryglitch_staged_products}/standalone/binaryglitch_standalone_plugin.exe")
     else()
         list(APPEND binaryglitch_artifact_commands
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${binaryglitch_juce_products}/VST3/BinaryGlitch.vst3" "${binaryglitch_staged_products}/vst3/binaryglitch_vst3_plugin.vst3"
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/NormalizeVst3ModuleInfo.py" "${binaryglitch_staged_products}/vst3/binaryglitch_vst3_plugin.vst3/Contents/Resources/moduleinfo.json"
             COMMAND ${CMAKE_COMMAND} -E copy "${binaryglitch_juce_products}/Standalone/BinaryGlitch" "${binaryglitch_staged_products}/standalone/binaryglitch_standalone_plugin")
     endif()
 
