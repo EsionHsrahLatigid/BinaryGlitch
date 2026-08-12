@@ -2,27 +2,29 @@ name: CI
 
 on:
   push:
+    branches: [ main ]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      force_heavy:
+        description: Run heavy plugin builds for manual dispatch
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  plugin:
-    name: Plugin build and smoke tests
-    uses: EsionHsrahLatigid/juce-ci/.github/workflows/juce-cmake.yml@98fcb96e64011725ed842941b350afe013e9ba7d
+  ci:
+    uses: EsionHsrahLatigid/juce-ci/.github/workflows/plugin-ci.yml@926c5bb10335c29503f92869169759ec18d71449
+    permissions:
+      contents: read
     with:
-      runs-on: macos-14
-      dependency-cache-key: juce-8.0.15
-      cmake-options: >-
-        -DBINARYGLITCH_BUILD_PLUGIN=ON
-        -DBINARYGLITCH_BUILD_TESTS=ON
-      build-targets: >-
-        BinaryGlitch_Artifacts
-        BinaryGlitchPluginSmokeTests
-      artifact-name: BinaryGlitch-macOS
-      artifact-path: |
-        artifacts/Release/VST3/
-        artifacts/Release/AU/
-        artifacts/Release/Standalone/
+      product_name: BinaryGlitch
+      product_slug: binaryglitch
+      cmake_option_prefix: BINARYGLITCH
+      debug_targets_json: '["BinaryGlitchPluginSmokeTests","BinaryGlitchEditorTests"]'
+      release_test_targets_json: '["BinaryGlitchPluginSmokeTests","BinaryGlitchEditorTests"]'
+      windows_debug_plugins: true
