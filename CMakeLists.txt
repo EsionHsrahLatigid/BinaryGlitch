@@ -155,6 +155,7 @@ if(BINARYGLITCH_BUILD_PLUGIN)
         add_test(
             NAME BinaryGlitchArtifactChecks
             COMMAND ${CMAKE_COMMAND}
+                    -DBUILD_CONFIG=$<CONFIG>
                     -DSTAGE_DIR=${binaryglitch_staged_products}
                     -DSLUG=binaryglitch
                     -DEXPECT_AU=$<BOOL:${APPLE}>
